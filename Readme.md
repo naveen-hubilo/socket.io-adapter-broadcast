@@ -1,5 +1,7 @@
 
-# socket.io-adapter
+# socket.io-adapter-broadcast 
+
+This is a frok of socket.io-adapter and support delayed broadcast.
 
 Default socket.io in-memory adapter class.
 
