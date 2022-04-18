@@ -1,10 +1,10 @@
 {
-  "name": "socket.io-adapter",
-  "version": "2.2.0",
+  "name": "socket.io-adapter-broadcast",
+  "version": "2.2.2",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git://github.com/socketio/socket.io-adapter.git"
+    "url": "git://github.com/naveen-hubilo/socket.io-adapter-broadcast.git"
   },
   "files": [
     "dist/"

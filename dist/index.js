@@ -2,8 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Adapter = void 0;
 const events_1 = require("events");
-const deplayBroadcastEnabled = process.env.DELAY_BROADCAST_ENABLED || false;
-const deplayBroadcastMilli = process.env.DELAY_BROADCAST_MILLI || 5000;
+const delayBroadcastEnabled = process.env.DELAY_BROADCAST_ENABLED || false;
+const delayBroadcastMilli = process.env.DELAY_BROADCAST_MILLI || 5000;
+var delayBroadcastTimerRunning=false;
 
 class InMemoryPackets {
     constructor(){
@@ -73,9 +74,14 @@ class Adapter extends events_1.EventEmitter {
             if (!this.rooms.has(room)) {
                 console.log("TODO:my-socket-join-2.3 - create-room - ", room);
                 this.packets.set(room, new InMemoryPackets());
-                setTimeout(this.sendInMemoryPackets.bind(this), deplayBroadcastMilli);
                 this.rooms.set(room, new Set());
                 this.emit("create-room", room);
+
+                if(delayBroadcastEnabled && delayBroadcastTimerRunning == false){
+                    console.log("TODO:my-socket-join-2.3 - started delayed timer - ");
+                    delayBroadcastTimerRunning = true;
+                    setTimeout(this.sendInMemoryPackets.bind(this), delayBroadcastMilli);
+                }
             }
             if (!this.rooms.get(room).has(id)) {
                 console.log("TODO:my-socket-join-2.4 - join-room - ", room);
@@ -156,7 +162,7 @@ class Adapter extends events_1.EventEmitter {
         packet.nsp = this.nsp.name;
         const encodedPackets = this.encoder.encode(packet);
 
-        if(deplayBroadcastEnabled && opts.except.size==0){
+        if(delayBroadcastEnabled && opts.except.size==0){
             console.log("TODO:my-socket-5.3 - ");
             for (const room of opts.rooms) {
                 console.log("TODO:my-socket-5.4 - room - encodedPackets - packetOpts - ", room, encodedPackets, packetOpts);
@@ -173,7 +179,7 @@ class Adapter extends events_1.EventEmitter {
     }
 
     sendInMemoryPackets(){
-        console.log("TODO:my-socket-delayed-9.0 -");
+        console.log("TODO:my-socket-delayed-9.0 - ", new Date());
         if(this.packets.size!=0){
             console.log("TODO:my-socket-delayed-9.1 - this.packets.size - ", this.packets.size);
             this.packets.forEach((packets, room) => {
@@ -181,13 +187,13 @@ class Adapter extends events_1.EventEmitter {
                 console.log("TODO:my-socket-delayed-10.2 - packets - packets.packetLength() - ", packets, packets.packetLength());
 
                 if(packets.packetLength()!=0){
-                    this.broadcastInMemoryPackets(packets,room);
+                    process.nextTick(this.broadcastInMemoryPackets.bind(this, packets,room));
                 }
             });
         }
 
         console.log("TODO:my-socket-delayed-9.2 -");
-        setTimeout(this.sendInMemoryPackets.bind(this), deplayBroadcastMilli);
+        setTimeout(this.sendInMemoryPackets.bind(this), delayBroadcastMilli);
     }
 
     broadcastInMemoryPackets(packets, room) {    
@@ -201,7 +207,7 @@ class Adapter extends events_1.EventEmitter {
         const packetOpts =packets.getPacketOpts();
         this.apply(opts, socket => {
             console.log("TODO:my-socket-12.1 - socket.id - ", socket.id);
-            console.log("TODO:my-socket-12.2 - packets - ", packets);
+            console.log("TODO:my-socket-12.2 - encodedPackets - packetOpts - ", encodedPackets, packetOpts);
             socket.packet(encodedPackets,packetOpts );
         });
     }
