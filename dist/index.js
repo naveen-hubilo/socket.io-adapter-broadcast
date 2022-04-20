@@ -162,7 +162,7 @@ class Adapter extends events_1.EventEmitter {
         packet.nsp = this.nsp.name;
         const encodedPackets = this.encoder.encode(packet);
 
-        if(delayBroadcastEnabled && opts.except.size==0){
+        if((delayBroadcastEnabled && opts.except.size==0) || (delayBroadcastEnabled && opts.except.size==1 && this.sids.has(opts.except.values().next().value))){
             console.log("TODO:my-socket-5.3 - ");
             for (const room of opts.rooms) {
                 console.log("TODO:my-socket-5.4 - room - encodedPackets - packetOpts - ", room, encodedPackets, packetOpts);
