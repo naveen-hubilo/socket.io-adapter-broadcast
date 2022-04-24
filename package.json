@@ -1,6 +1,6 @@
 {
   "name": "socket.io-adapter-broadcast",
-  "version": "2.2.4",
+  "version": "2.2.5",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -25,5 +25,8 @@
     "format:check": "prettier --parser typescript --check 'lib/**/*.ts' 'test/**/*.js'",
     "format:fix": "prettier --parser typescript --write 'lib/**/*.ts' 'test/**/*.js'",
     "prepack": "tsc"
+  },
+  "dependencies": {
+    "socket.io-parser": "^4.0.3"
   }
 }
