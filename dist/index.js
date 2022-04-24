@@ -3,10 +3,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Adapter = void 0;
 const events_1 = require("events");
 const socket_io_parser_1 = require("socket.io-parser");
-const delayBroadcastEnabled = process.env.DELAY_BROADCAST_ENABLED || false;
-const delayBroadcastMilli = process.env.DELAY_BROADCAST_MILLI || 5000;
-const delayBroadcastBatchSize = process.env.DELAY_BROADCAST_BATCH_SIZE || 80;
-var delayBroadcastTimerRunning=false;
+const delayBroadcastEnabled = process.env.DELAY_BROADCAST_ENABLED === "true";
+const delayBroadcastMilli = process.env.DELAY_BROADCAST_MILLI ? parseInt(process.env.DELAY_BROADCAST_MILLI) : 5000;
+const delayBroadcastBatchSize = process.env.DELAY_BROADCAST_BATCH_SIZE ? parseInt(process.env.DELAY_BROADCAST_BATCH_SIZE) : 80;
+var delayBroadcastTimerRunning = false;
 
 class InMemoryPackets {
     constructor(){
@@ -74,16 +74,18 @@ class Adapter extends events_1.EventEmitter {
         for (const room of rooms) {
             this.sids.get(id).add(room);
             if (!this.rooms.has(room)) {
+                // console.log("delayBroadcastEnabled, delayBroadcastTimerRunning, delayBroadcastMilli, delayBroadcastBatchSize - ", delayBroadcastEnabled, delayBroadcastTimerRunning, delayBroadcastMilli, delayBroadcastBatchSize);
                 // console.log("TODO:my-socket-join-2.3 - create-room - ", room);
-                if(delayBroadcastEnabled){
+                if(delayBroadcastEnabled === true){
+                    console.log("Adding inMemoryPacket.");
                     this.inMemoryPackets.set(room, new InMemoryPackets());
                 }
 
                 this.rooms.set(room, new Set());
                 this.emit("create-room", room);
 
-                if(delayBroadcastEnabled && delayBroadcastTimerRunning == false){
-                    console.log("TODO:my-socket-join-2.3 - started delayed timer - ");
+                if(delayBroadcastEnabled === true && delayBroadcastTimerRunning === false){
+                    console.log("TODO:my-socket-join-2.3 - started delayed timer");
                     delayBroadcastTimerRunning = true;
                     setTimeout(this.sendInMemoryPackets.bind(this), delayBroadcastMilli);
                 }
@@ -170,7 +172,7 @@ class Adapter extends events_1.EventEmitter {
         // myPacket.nsp = this.nsp.name;
         // const myEncodedPackets = this.encoder.encode(myPacket);
 
-        if((delayBroadcastEnabled && opts.except.size==0) || (delayBroadcastEnabled && opts.except.size==1 && this.sids.has(opts.except.values().next().value))){
+        if((delayBroadcastEnabled === true && opts.except.size === 0) || (delayBroadcastEnabled === true && opts.except.size === 1 && this.sids.has(opts.except.values().next().value))){
             // console.log("TODO:my-socket-5.3 - ");
             for (const room of opts.rooms) {
                 // console.log("TODO:my-socket-5.4 - room - encodedPackets - packetOpts - ", room, encodedPackets, packetOpts);
@@ -189,13 +191,13 @@ class Adapter extends events_1.EventEmitter {
     sendInMemoryPackets(){
         try {
             // console.log("TODO:my-socket-delayed-9.0 - ", new Date());
-            if(this.inMemoryPackets.size!=0){
+            if(this.inMemoryPackets.size!==0){
                 var startTime = Date.now();
                 // console.log("TODO:my-socket-delayed-9.1 - this.packets.size - ", this.packets.size);
                 this.inMemoryPackets.forEach((packets, room) => {
                     // console.log("TODO:my-socket-delayed-10.1 - room - ", room);
 
-                    if(packets.packetLength()!=0){
+                    if(packets.packetLength()!==0){
                         console.log("TODO:my-socket-delayed-10.2 - room, packets.size - ", room, JSON.stringify(packets),packets.packetLength(), Date.now());
                         process.nextTick(this.broadcastInMemoryPackets.bind(this, packets,room));
                     }
