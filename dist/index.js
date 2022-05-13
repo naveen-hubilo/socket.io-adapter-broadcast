@@ -3,35 +3,35 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Adapter = void 0;
 const events_1 = require("events");
 const socket_io_parser_1 = require("socket.io-parser");
-const delayBroadcastEnabled = process.env.DELAY_BROADCAST_ENABLED === "true";
-const delayBroadcastMilli = process.env.DELAY_BROADCAST_MILLI ? parseInt(process.env.DELAY_BROADCAST_MILLI) : 5000;
+// const delayBroadcastEnabled = process.env.DELAY_BROADCAST_ENABLED === "true";
+const delayBroadcastMilli = process.env.DELAY_BROADCAST_MILLI ? parseInt(process.env.DELAY_BROADCAST_MILLI) : 1000;
 const delayBroadcastBatchSize = process.env.DELAY_BROADCAST_BATCH_SIZE ? parseInt(process.env.DELAY_BROADCAST_BATCH_SIZE) : 80;
 var delayBroadcastTimerRunning = false;
 
 class InMemoryPackets {
-    constructor(){
+    constructor() {
         this.packets = new Array();
         this.packetOpts;
     }
 
-    addPacket(packet, packetOpts){
+    addPacket(packet, packetOpts) {
         this.packets.push(packet);
-        this.packetOpts=packetOpts;
+        this.packetOpts = packetOpts;
     }
 
-    popPackets(maxsize){
+    popPackets(maxsize) {
         return this.packets.splice(0, maxsize);
     }
 
-    popPackets(){
+    popPackets() {
         return this.packets.splice(0, this.packets.length);
     }
 
-    getPacketOpts(){
+    getPacketOpts() {
         return this.packetOpts;
     }
 
-    packetLength(){
+    packetLength() {
         return this.packets.length;
     }
 }
@@ -42,13 +42,14 @@ class Adapter extends events_1.EventEmitter {
      *
      * @param {Namespace} nsp
      */
-    constructor(nsp) {
+    constructor(nsp, isRoomBroadcastMsgBatchingAllowedCheckFunc) {
         super();
         this.nsp = nsp;
         this.rooms = new Map();
         this.sids = new Map();
         this.encoder = nsp.server.encoder;
         this.inMemoryPackets = new Map();
+        this.isRoomBroadcastMsgBatchingAllowedCheckFunc = isRoomBroadcastMsgBatchingAllowedCheckFunc ? isRoomBroadcastMsgBatchingAllowedCheckFunc : null;
     }
     /**
      * To be overridden
@@ -66,38 +67,29 @@ class Adapter extends events_1.EventEmitter {
      * @public
      */
     addAll(id, rooms) {
-        // console.log("TODO:my-socket-join-2.1 - id - ", id);
-        // console.log("TODO:my-socket-join-2.2 - rooms - ", rooms);
         if (!this.sids.has(id)) {
             this.sids.set(id, new Set());
         }
         for (const room of rooms) {
             this.sids.get(id).add(room);
             if (!this.rooms.has(room)) {
-                // console.log("delayBroadcastEnabled, delayBroadcastTimerRunning, delayBroadcastMilli, delayBroadcastBatchSize - ", delayBroadcastEnabled, delayBroadcastTimerRunning, delayBroadcastMilli, delayBroadcastBatchSize);
-                // console.log("TODO:my-socket-join-2.3 - create-room - ", room);
-                if(delayBroadcastEnabled === true){
-                    console.log("Adding inMemoryPacket.");
+                if (this.isRoomBroadcastMsgBatchingAllowedCheckFunc !== null && this.isRoomBroadcastMsgBatchingAllowedCheckFunc(room)) {
                     this.inMemoryPackets.set(room, new InMemoryPackets());
                 }
 
                 this.rooms.set(room, new Set());
                 this.emit("create-room", room);
 
-                if(delayBroadcastEnabled === true && delayBroadcastTimerRunning === false){
-                    console.log("TODO:my-socket-join-2.3 - started delayed timer");
+                if (delayBroadcastTimerRunning === false && this.inMemoryPackets.size > 0) {
+                    console.log("TODO:my-socket-join-2.3 - started delayed timer - ", Date.now());
                     delayBroadcastTimerRunning = true;
                     setTimeout(this.sendInMemoryPackets.bind(this), delayBroadcastMilli);
                 }
             }
             if (!this.rooms.get(room).has(id)) {
-                // console.log("TODO:my-socket-join-2.4 - join-room - ", room);
-                // console.log("TODO:my-socket-join-2.5 - join-room - id - ", id);
                 this.rooms.get(room).add(id);
                 this.emit("join-room", room, id);
             }
-
-            // console.log("TODO:my-socket-join-2.6 - room, this.rooms.get(room) - ", room, this.rooms.get(room));
         }
     }
 
@@ -108,7 +100,6 @@ class Adapter extends events_1.EventEmitter {
      * @param {Room}     room   the room name
      */
     del(id, room) {
-        // console.log("TODO:my-socket-leave-2 - room - id - ", room, id);
         if (this.sids.has(id)) {
             this.sids.get(id).delete(room);
         }
@@ -121,10 +112,7 @@ class Adapter extends events_1.EventEmitter {
                 this.emit("leave-room", room, id);
             }
 
-            // console.log("TODO:my-socket-leave-3.1 - room - id - ", room, id);
-
             if (this.rooms.get(room).size === 0) {
-                // console.log("TODO:my-socket-leave-3.2 - this.rooms.get(room) - id - ", this.rooms.get(room), id);
                 this.inMemoryPackets.delete(room);
                 this.rooms.delete(room);
                 this.emit("delete-room", room);
@@ -158,8 +146,6 @@ class Adapter extends events_1.EventEmitter {
      * @public
      */
     broadcast(packet, opts) {
-        // console.log("TODO:my-socket-5.1 - packet - ", packet.length);
-        // console.log("TODO:my-socket-5.2 - opts - ", opts);
         const flags = opts.flags || {};
         const packetOpts = {
             preEncoded: true,
@@ -168,72 +154,61 @@ class Adapter extends events_1.EventEmitter {
         };
         packet.nsp = this.nsp.name;
         const encodedPackets = this.encoder.encode(packet);
-        // const myPacket={ type: 2, data: ["hubiloBroadcast","I am deeply honored to be given the opportunity to share my experience as a student for the alumni."], nsp: '/' };
-        // myPacket.nsp = this.nsp.name;
-        // const myEncodedPackets = this.encoder.encode(myPacket);
+        
+       /**
+        * Check if for all the rooms broadcast batching is enabled.
+        */
+        var isAllRoomsBroadcastMsgBatchingAllowed = true;
+        for (const room of opts.rooms) {
+            if (this.inMemoryPackets.has(room) === false) {
+                isAllRoomsBroadcastMsgBatchingAllowed = false;
+                break;
+            }
+        }
 
-        if((delayBroadcastEnabled === true && opts.except.size === 0) || (delayBroadcastEnabled === true && opts.except.size === 1 && this.sids.has(opts.except.values().next().value))){
-            // console.log("TODO:my-socket-5.3 - ");
+        if ((isAllRoomsBroadcastMsgBatchingAllowed === true && opts.except.size === 0) || (isAllRoomsBroadcastMsgBatchingAllowed === true && opts.except.size === 1 && this.sids.has(opts.except.values().next().value))) {
             for (const room of opts.rooms) {
-                // console.log("TODO:my-socket-5.4 - room - encodedPackets - packetOpts - ", room, encodedPackets, packetOpts);
                 this.inMemoryPackets.get(room).addPacket(encodedPackets[0], packetOpts);
             }
-        }else{
-            // console.log("TODO:my-socket-5.5 - ");
+        } else {
             this.apply(opts, socket => {
-                // console.log("TODO:my-socket-7.1 - opts - ", opts);
-                // console.log("TODO:my-socket-7.2 - socket.id - ", socket.id);
                 socket.packet(encodedPackets, packetOpts);
             });
         }
     }
 
-    sendInMemoryPackets(){
+    sendInMemoryPackets() {
         try {
-            // console.log("TODO:my-socket-delayed-9.0 - ", new Date());
-            if(this.inMemoryPackets.size!==0){
+            if (this.inMemoryPackets.size !== 0) {
                 var startTime = Date.now();
-                // console.log("TODO:my-socket-delayed-9.1 - this.packets.size - ", this.packets.size);
                 this.inMemoryPackets.forEach((packets, room) => {
-                    // console.log("TODO:my-socket-delayed-10.1 - room - ", room);
 
-                    if(packets.packetLength()!==0){
-                        console.log("TODO:my-socket-delayed-10.2 - room, packets.size - ", room, JSON.stringify(packets),packets.packetLength(), Date.now());
-                        process.nextTick(this.broadcastInMemoryPackets.bind(this, packets,room));
+                    if (packets.packetLength() !== 0) {
+                        process.nextTick(this.broadcastInMemoryPackets.bind(this, packets, room));
                     }
                 });
-                console.log("TODO:my-socket-6 - sendInMemoryPackets.time - ", startTime , Date.now()- startTime);
             }
         } catch (error) {
             console.log("error - ", error);
-        }finally{
-            // console.log("TODO:my-socket-delayed-9.2 -");
+        } finally {
             setTimeout(this.sendInMemoryPackets.bind(this), delayBroadcastMilli);
         }
     }
 
-    broadcastInMemoryPackets(packets, room) {    
-        // console.log("TODO:my-socket-11.1 - packets - ", packets);
-        // console.log("TODO:my-socket-11.2 - room - ", room);
+    broadcastInMemoryPackets(packets, room) {
         const opts = {
             rooms: new Set([room]),
             except: new Set()
         };
-        const batchedBroadcastPackets = { 
-            type: socket_io_parser_1.PacketType.EVENT, 
-            data: ["batchedBroadcast", packets.popPackets(delayBroadcastBatchSize)], 
-            nsp: this.nsp.name 
+        const batchedBroadcastPackets = {
+            type: socket_io_parser_1.PacketType.EVENT,
+            data: ["batchedBroadcast", packets.popPackets(delayBroadcastBatchSize)],
+            nsp: this.nsp.name
         };
-	    const encodedBatchedBroadcastPackets = this.encoder.encode(batchedBroadcastPackets);
-        const batchedBroadcastPacketsOpts =packets.getPacketOpts();
-
-        console.log("batchedBroadcastPackets - ", batchedBroadcastPackets);
-
-        //console.log("TODO:my-socket-delayed-10.3 - Post popup, room, packets.size, this.packets.size - ", room, packets.packetLength(), this.packets.get(room).packetLength());
+        const encodedBatchedBroadcastPackets = this.encoder.encode(batchedBroadcastPackets);
+        const batchedBroadcastPacketsOpts = packets.getPacketOpts();
 
         this.apply(opts, socket => {
-            // console.log("TODO:my-socket-12.1 - socket.id - ", socket.id);
-            // console.log("TODO:my-socket-12.2 - encodedPackets - packetOpts - ", encodedPackets, packetOpts);
             socket.packet(encodedBatchedBroadcastPackets, batchedBroadcastPacketsOpts);
         });
     }
@@ -304,8 +279,6 @@ class Adapter extends events_1.EventEmitter {
         });
     }
     apply(opts, callback) {
-        var startTime = Date.now();
-        // console.log("TODO:my-socket-6 - opts - ",  opts);
         const rooms = opts.rooms;
         const except = this.computeExceptSids(opts.except);
         if (rooms.size) {
@@ -333,7 +306,6 @@ class Adapter extends events_1.EventEmitter {
                     callback(socket);
             }
         }
-        console.log("TODO:my-socket-6 - apply.time - ",  Date.now()- startTime);
     }
     computeExceptSids(exceptRooms) {
         const exceptSids = new Set();
