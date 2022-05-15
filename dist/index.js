@@ -166,7 +166,7 @@ class Adapter extends events_1.EventEmitter {
             }
         }
 
-        if ((isAllRoomsBroadcastMsgBatchingAllowed === true && opts.except.size === 0) || (isAllRoomsBroadcastMsgBatchingAllowed === true && opts.except.size === 1 && this.sids.has(opts.except.values().next().value))) {
+        if ((isAllRoomsBroadcastMsgBatchingAllowed === true && opts.except.size === 0) || (isAllRoomsBroadcastMsgBatchingAllowed === true && opts.except.size === 1 && (this.sids.has(opts.except.values().next().value) || this.rooms.has(opts.except.values().next().value) === false))) {
             for (const room of opts.rooms) {
                 this.inMemoryPackets.get(room).addPacket(encodedPackets[0], packetOpts);
             }
