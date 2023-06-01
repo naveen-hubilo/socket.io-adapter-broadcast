@@ -162,7 +162,6 @@ class Adapter extends events_1.EventEmitter {
         let excludeActionsInBatching = false;
         const section = packet?.data[1]?.data?.section;
         const action = packet?.data[1]?.data?.payload?.action;
-        console.log('this.excludeBatchMap:::', this.excludeBatchMap);
         if(this.excludeBatchMap.size > 0 && this.excludeBatchMap.has(section) && this.excludeBatchMap.get(section).has(action)) {
             excludeActionsInBatching = true;
         }
