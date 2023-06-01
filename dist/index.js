@@ -42,7 +42,7 @@ class Adapter extends events_1.EventEmitter {
      *
      * @param {Namespace} nsp
      */
-    constructor(nsp, isRoomBroadcastMsgBatchingAllowedCheckFunc) {
+    constructor(nsp, isRoomBroadcastMsgBatchingAllowedCheckFunc, excludeBatchMap) {
         super();
         this.nsp = nsp;
         this.rooms = new Map();
@@ -50,6 +50,7 @@ class Adapter extends events_1.EventEmitter {
         this.encoder = nsp.server.encoder;
         this.inMemoryPackets = new Map();
         this.isRoomBroadcastMsgBatchingAllowedCheckFunc = isRoomBroadcastMsgBatchingAllowedCheckFunc ? isRoomBroadcastMsgBatchingAllowedCheckFunc : null;
+        this.excludeBatchMap = excludeBatchMap ? excludeBatchMap : new Map();
     }
     /**
      * To be overridden
@@ -155,6 +156,17 @@ class Adapter extends events_1.EventEmitter {
         packet.nsp = this.nsp.name;
         const encodedPackets = this.encoder.encode(packet);
         
+        /**
+         * exclude section and action
+         */
+        let excludeActionsInBatching = false;
+        const section = packet?.data[1]?.data?.section;
+        const action = packet?.data[1]?.data?.payload?.action;
+        console.log('this.excludeBatchMap:::', this.excludeBatchMap);
+        if(this.excludeBatchMap.size > 0 && this.excludeBatchMap.has(section) && this.excludeBatchMap.get(section).has(action)) {
+            excludeActionsInBatching = true;
+        }
+
        /**
         * Check if for all the rooms broadcast batching is enabled.
         */
@@ -166,7 +178,7 @@ class Adapter extends events_1.EventEmitter {
             }
         }
 
-        if ((isAllRoomsBroadcastMsgBatchingAllowed === true && opts.except.size === 0) || (isAllRoomsBroadcastMsgBatchingAllowed === true && opts.except.size === 1 && (this.sids.has(opts.except.values().next().value) || this.rooms.has(opts.except.values().next().value) === false))) {
+        if (!excludeActionsInBatching && ((isAllRoomsBroadcastMsgBatchingAllowed === true && opts.except.size === 0) || (isAllRoomsBroadcastMsgBatchingAllowed === true && opts.except.size === 1 && (this.sids.has(opts.except.values().next().value) || this.rooms.has(opts.except.values().next().value) === false)))) {
             for (const room of opts.rooms) {
                 this.inMemoryPackets.get(room).addPacket(encodedPackets[0], packetOpts);
             }
